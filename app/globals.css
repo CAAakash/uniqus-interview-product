@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-ink-50 text-ink-800 antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+  /* Tabular numerals on every figure cell */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset;
+  }
+  .pill-green {
+    @apply bg-emerald-50 text-emerald-700 ring-emerald-600/20;
+  }
+  .pill-amber {
+    @apply bg-amber-50 text-amber-700 ring-amber-600/20;
+  }
+  .pill-red {
+    @apply bg-rose-50 text-rose-700 ring-rose-600/20;
+  }
+  .pill-blue {
+    @apply bg-accent-50 text-accent-700 ring-accent-600/20;
+  }
+  .pill-slate {
+    @apply bg-ink-100 text-ink-700 ring-ink-300/60;
+  }
+  .dot {
+    @apply h-1.5 w-1.5 rounded-full;
+  }
+  .card {
+    @apply rounded-xl bg-white ring-1 ring-ink-200/70 shadow-soft;
+  }
+  .nav-item {
+    @apply flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors;
+  }
+  .nav-item-active {
+    @apply bg-white text-ink-900 ring-1 ring-ink-200/70 shadow-soft;
+  }
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply bg-ink-900 text-white hover:bg-ink-800;
+  }
+  .btn-ghost {
+    @apply text-ink-700 hover:bg-ink-100;
+  }
+  .btn-outline {
+    @apply ring-1 ring-ink-200 text-ink-700 hover:bg-ink-50;
+  }
+  .table-th {
+    @apply sticky top-0 z-10 bg-ink-50/90 backdrop-blur px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-500 border-b border-ink-200;
+  }
+  .table-td {
+    @apply px-3 py-2 text-sm text-ink-800 border-b border-ink-100;
+  }
+  .row-hover:hover {
+    @apply bg-ink-50;
+  }
+}
+
+/* Hide horizontal scrollbar but keep functionality on tables */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Subtle scrollbar for primary scroll containers */
+.thin-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(193 199 208 / 0.6);
+  border-radius: 9999px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
