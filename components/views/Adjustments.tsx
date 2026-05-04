@@ -10,9 +10,9 @@ import {
   Edit3,
   ArrowRight,
 } from "lucide-react";
-import { adjustments } from "@/lib/data";
 import type { Unit } from "@/lib/format";
 import { fmt } from "@/lib/format";
+import { useApp } from "@/lib/store";
 
 const STATUS = {
   posted: { cls: "pill-green", icon: CheckCircle2, label: "Posted" },
@@ -31,19 +31,35 @@ const CATEGORY_TONE: Record<string, string> = {
 
 export default function Adjustments({ unit }: { unit: Unit }) {
   const [openId, setOpenId] = useState<string | null>("ADJ-001");
+  const { adj, postAdj, openDialog, toast } = useApp();
 
   return (
     <div className="space-y-4">
-      {/* Goodwill computation hero */}
       <div className="card p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="pill pill-blue">Ind AS 103</span>
           <h2 className="text-sm font-semibold text-ink-900">
             Goodwill on acquisition · Northstar Solutions Ltd (51%)
           </h2>
+          <div className="flex-1" />
+          <button
+            onClick={() =>
+              openDialog({
+                type: "workings",
+                adj: adj.find((a) => a.id === "ADJ-001")!,
+              })
+            }
+            className="btn btn-outline text-xs"
+          >
+            Open workings
+          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
-          <Tile label="Purchase consideration" value={fmt(385000, unit)} sub="Cash + share swap" />
+          <Tile
+            label="Purchase consideration"
+            value={fmt(385000, unit)}
+            sub="Cash + share swap"
+          />
           <Tile
             label="FV of net identifiable assets"
             value={fmt(199400, unit)}
@@ -71,21 +87,28 @@ export default function Adjustments({ unit }: { unit: Unit }) {
         </div>
       </div>
 
-      {/* Action bar */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-ink-900">All adjustments</h2>
-        <span className="pill pill-slate">{adjustments.length}</span>
+        <span className="pill pill-slate">{adj.length}</span>
         <div className="flex-1" />
-        <button className="btn btn-primary text-xs">
+        <button
+          onClick={() =>
+            toast({
+              tone: "info",
+              title: "Adjustment template",
+              body: "Pick a template to start a new adjustment (Goodwill, NCI, FV, Unrealised profit, DT, Ind AS).",
+            })
+          }
+          className="btn btn-primary text-xs"
+        >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">New adjustment</span>
           <span className="sm:hidden">New</span>
         </button>
       </div>
 
-      {/* Adjustment list */}
       <div className="space-y-2">
-        {adjustments.map((a) => {
+        {adj.map((a) => {
           const open = openId === a.id;
           const s = STATUS[a.status];
           const Icon = s.icon;
@@ -157,23 +180,44 @@ export default function Adjustments({ unit }: { unit: Unit }) {
                       </div>
                       <div className="rounded-lg bg-white ring-1 ring-ink-200 p-3 text-sm">
                         <div className="flex items-center gap-2 text-ink-700">
-                          <span className="num text-emerald-600 font-medium">Dr</span>
+                          <span className="num text-emerald-600 font-medium">
+                            Dr
+                          </span>
                           <span className="flex-1">{a.drBy}</span>
-                          <span className="num">{fmt(Math.abs(a.amount), unit)}</span>
+                          <span className="num">
+                            {fmt(Math.abs(a.amount), unit)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 text-ink-700 mt-1">
-                          <span className="num text-rose-600 font-medium">Cr</span>
+                          <span className="num text-rose-600 font-medium">
+                            Cr
+                          </span>
                           <span className="flex-1">{a.crBy}</span>
-                          <span className="num">{fmt(Math.abs(a.amount), unit)}</span>
+                          <span className="num">
+                            {fmt(Math.abs(a.amount), unit)}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button className="btn btn-outline text-xs">View workings</button>
-                    <button className="btn btn-outline text-xs">Edit</button>
+                    <button
+                      onClick={() => openDialog({ type: "workings", adj: a })}
+                      className="btn btn-outline text-xs"
+                    >
+                      View workings
+                    </button>
+                    <button
+                      onClick={() => openDialog({ type: "edit-adjustment", adj: a })}
+                      className="btn btn-outline text-xs"
+                    >
+                      Edit
+                    </button>
                     {a.status !== "posted" && (
-                      <button className="btn btn-primary text-xs">
+                      <button
+                        onClick={() => postAdj(a.id)}
+                        className="btn btn-primary text-xs"
+                      >
                         Post adjustment
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
@@ -217,7 +261,9 @@ function Tile({
           <span
             className={[
               "h-4 w-4 rounded grid place-items-center text-[10px] font-bold",
-              sign === "+" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700",
+              sign === "+"
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-rose-100 text-rose-700",
             ].join(" ")}
           >
             {sign}

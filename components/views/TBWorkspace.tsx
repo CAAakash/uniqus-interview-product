@@ -10,32 +10,34 @@ import {
   ChevronDown,
   FileSpreadsheet,
 } from "lucide-react";
-import { entities, tbLogi } from "@/lib/data";
+import { entities } from "@/lib/data";
 import type { Unit } from "@/lib/format";
 import { fmt } from "@/lib/format";
+import { useApp } from "@/lib/store";
 
 export default function TBWorkspace({ unit }: { unit: Unit }) {
   const [entityId, setEntityId] = useState("logi");
   const [filter, setFilter] = useState<"all" | "unmapped" | "ic">("all");
   const [q, setQ] = useState("");
+  const { tb, openDialog } = useApp();
 
   const rows = useMemo(() => {
-    return tbLogi.filter((r) => {
+    return tb.filter((r) => {
       if (filter === "unmapped" && r.fsGroup) return false;
       if (filter === "ic" && !r.note?.toLowerCase().includes("inter")) return false;
       if (q && !`${r.code} ${r.ledger} ${r.fsGroup ?? ""}`.toLowerCase().includes(q.toLowerCase()))
         return false;
       return true;
     });
-  }, [filter, q]);
+  }, [filter, q, tb]);
 
   const totals = useMemo(() => {
-    const tDr = tbLogi.reduce((a, r) => a + r.debit, 0);
-    const tCr = tbLogi.reduce((a, r) => a + r.credit, 0);
-    const mapped = tbLogi.filter((r) => !!r.fsGroup).length;
-    const unmapped = tbLogi.length - mapped;
-    return { tDr, tCr, mapped, unmapped, total: tbLogi.length };
-  }, []);
+    const tDr = tb.reduce((a, r) => a + r.debit, 0);
+    const tCr = tb.reduce((a, r) => a + r.credit, 0);
+    const mapped = tb.filter((r) => !!r.fsGroup).length;
+    const unmapped = tb.length - mapped;
+    return { tDr, tCr, mapped, unmapped, total: tb.length };
+  }, [tb]);
 
   const entity = entities.find((e) => e.id === entityId)!;
 
@@ -44,7 +46,6 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
       {/* Toolbar */}
       <div className="card p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2">
-          {/* entity selector */}
           <div className="relative">
             <select
               value={entityId}
@@ -62,9 +63,7 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-ink-500">
-            <span className="pill pill-slate">
-              {entity.holdingPct}% holding
-            </span>
+            <span className="pill pill-slate">{entity.holdingPct}% holding</span>
             {entity.ncIPct > 0 && (
               <span className="pill pill-amber">NCI {entity.ncIPct}%</span>
             )}
@@ -73,24 +72,32 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
           <div className="flex-1" />
 
           <div className="hidden md:flex items-center gap-2 text-xs text-ink-500">
-            <span className="pill pill-green">
+            <button
+              onClick={() => setFilter("all")}
+              className="pill pill-green hover:bg-emerald-100"
+            >
               <CheckCircle2 className="h-3 w-3" />
               {totals.mapped} mapped
-            </span>
-            <span className="pill pill-red">
+            </button>
+            <button
+              onClick={() => setFilter("unmapped")}
+              className="pill pill-red hover:bg-rose-100"
+            >
               <AlertCircle className="h-3 w-3" />
               {totals.unmapped} unmapped
-            </span>
+            </button>
           </div>
 
-          <button className="btn btn-primary text-xs">
+          <button
+            onClick={() => openDialog({ type: "upload-tb", entityId })}
+            className="btn btn-primary text-xs"
+          >
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Upload TB</span>
             <span className="sm:hidden">TB</span>
           </button>
         </div>
 
-        {/* Search + filters */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[180px]">
             <Search className="h-4 w-4 text-ink-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -117,22 +124,30 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
               </button>
             ))}
           </div>
-          <button className="btn btn-outline text-xs">
+          <button
+            onClick={() => openDialog({ type: "more-filters" })}
+            className="btn btn-outline text-xs"
+          >
             <Filter className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">More filters</span>
           </button>
         </div>
 
-        {/* Mobile mapping summary */}
         <div className="md:hidden mt-3 flex items-center gap-2">
-          <span className="pill pill-green">
+          <button
+            onClick={() => setFilter("all")}
+            className="pill pill-green hover:bg-emerald-100"
+          >
             <CheckCircle2 className="h-3 w-3" />
             {totals.mapped} mapped
-          </span>
-          <span className="pill pill-red">
+          </button>
+          <button
+            onClick={() => setFilter("unmapped")}
+            className="pill pill-red hover:bg-rose-100"
+          >
             <AlertCircle className="h-3 w-3" />
             {totals.unmapped} unmapped
-          </span>
+          </button>
         </div>
       </div>
 
@@ -166,12 +181,18 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
                   <td className="table-td num text-right">{fmt(r.credit, unit)}</td>
                   <td className="table-td">
                     {r.fsGroup ? (
-                      <span className="inline-flex items-center gap-1.5 text-ink-700">
+                      <button
+                        onClick={() => openDialog({ type: "map-ledger", ledger: r })}
+                        className="inline-flex items-center gap-1.5 text-ink-700 hover:text-accent-700"
+                      >
                         <span className="dot bg-emerald-500" />
                         <span className="truncate max-w-[200px]">{r.fsGroup}</span>
-                      </span>
+                      </button>
                     ) : (
-                      <button className="inline-flex items-center gap-1.5 text-rose-600 font-medium hover:underline">
+                      <button
+                        onClick={() => openDialog({ type: "map-ledger", ledger: r })}
+                        className="inline-flex items-center gap-1.5 text-rose-600 font-medium hover:underline"
+                      >
                         <span className="dot bg-rose-500" />
                         Map ledger →
                       </button>
@@ -182,7 +203,9 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
                       <span className="pill pill-amber">IC</span>
                     )}
                     {r.note?.toLowerCase().includes("ind as") && (
-                      <span className="pill pill-blue">{r.note?.match(/Ind AS \d+/)?.[0]}</span>
+                      <span className="pill pill-blue">
+                        {r.note?.match(/Ind AS \d+/)?.[0]}
+                      </span>
                     )}
                     {r.flagged && <span className="pill pill-red">Review</span>}
                   </td>
@@ -191,7 +214,7 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
               <tr className="bg-ink-50/70 sticky bottom-0">
                 <td className="table-td font-semibold text-ink-700"></td>
                 <td className="table-td font-semibold text-ink-700">
-                  Total ({rows.length} of {tbLogi.length})
+                  Total ({rows.length} of {tb.length})
                 </td>
                 <td className="table-td num font-semibold text-right">
                   {fmt(totals.tDr, unit)}

@@ -6,6 +6,8 @@ import { entities, pnlRows, bsRows, cashFlowRows } from "@/lib/data";
 import type { FSRow } from "@/lib/data";
 import type { Unit } from "@/lib/format";
 import { fmt } from "@/lib/format";
+import { useApp } from "@/lib/store";
+import { exportConsolidatedFS } from "@/lib/excel";
 
 type Statement = "pnl" | "bs" | "cf";
 
@@ -17,8 +19,9 @@ const TABS: { key: Statement; label: string; rows: FSRow[] }[] = [
 
 export default function ConsolidatedFS({ unit }: { unit: Unit }) {
   const [tab, setTab] = useState<Statement>("pnl");
-  const [drill, setDrill] = useState<{ row: FSRow; col: string } | null>(null);
   const [schedIII, setSchedIII] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const { openDialog, toast } = useApp();
 
   const cur = TABS.find((t) => t.key === tab)!;
   const cols = [
@@ -27,9 +30,31 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
     { key: "consol", label: "Consolidated", sub: "Group" },
   ];
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportConsolidatedFS();
+      toast({
+        tone: "ok",
+        title: "Excel downloaded",
+        body: "Acme-Consolidated-FS-FY25.xlsx · gridlines off · BS/Notes linked to P&L.",
+      });
+    } catch (e) {
+      toast({
+        tone: "err",
+        title: "Export failed",
+        body: String(e),
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Show only consol column when CF (single-column statement)
+  const showCols = tab === "cf" ? cols.filter((c) => c.key === "consol") : cols;
+
   return (
     <div className="space-y-4">
-      {/* Tabs + actions */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg ring-1 ring-ink-200 bg-white p-0.5 text-xs">
           {TABS.map((t) => (
@@ -57,17 +82,23 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
           Schedule III format
         </label>
         <div className="flex-1" />
-        <button className="btn btn-outline text-xs">
+        <button
+          onClick={() => openDialog({ type: "preview-pdf", statement: tab })}
+          className="btn btn-outline text-xs"
+        >
           <Eye className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Preview PDF</span>
         </button>
-        <button className="btn btn-primary text-xs">
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="btn btn-primary text-xs disabled:opacity-60"
+        >
           <Download className="h-3.5 w-3.5" />
-          Export
+          {exporting ? "Exporting…" : "Export Excel"}
         </button>
       </div>
 
-      {/* FS table with frozen first column + sticky header */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto thin-scrollbar relative">
           <table className="w-full text-sm border-separate border-spacing-0">
@@ -76,7 +107,7 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
                 <th className="table-th sticky left-0 z-20 bg-ink-50/95 min-w-[220px] sm:min-w-[280px] backdrop-blur">
                   Particulars
                 </th>
-                {cols.map((c) => (
+                {showCols.map((c) => (
                   <th
                     key={c.key}
                     className={[
@@ -93,6 +124,9 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
                     </div>
                   </th>
                 ))}
+                <th className="table-th text-right whitespace-nowrap hidden lg:table-cell">
+                  Note
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -111,6 +145,7 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
                     className={[
                       "table-td sticky left-0 z-10 bg-white",
                       r.isTotal && "bg-ink-50/80 font-semibold",
+                      r.italic && "italic text-ink-500",
                       r.level === 1 && "pl-6",
                       r.level === 2 && "pl-9 text-ink-600",
                     ]
@@ -119,10 +154,24 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
                   >
                     {r.label}
                   </td>
-                  {cols.map((c) => {
+                  {showCols.map((c) => {
                     const v = r.values[c.key] ?? 0;
                     const isConsol = c.key === "consol";
                     const isElim = c.key === "elim";
+                    if (
+                      r.label === "ASSETS" ||
+                      r.label === "EQUITY & LIABILITIES" ||
+                      r.label === "Non-current assets" ||
+                      r.label === "Current assets" ||
+                      r.label === "Equity" ||
+                      r.label === "Non-current liabilities" ||
+                      r.label === "Current liabilities" ||
+                      r.label === "A. Cash flows from operating activities" ||
+                      r.label === "B. Cash flows from investing activities" ||
+                      r.label === "C. Cash flows from financing activities"
+                    ) {
+                      return <td key={c.key} className="table-td"></td>;
+                    }
                     return (
                       <td
                         key={c.key}
@@ -138,13 +187,26 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
                       >
                         <button
                           className="hover:underline"
-                          onClick={() => setDrill({ row: r, col: c.key })}
+                          onClick={() => {
+                            if (v === 0) return;
+                            openDialog({
+                              type: "drill",
+                              rowId: r.id,
+                              rowLabel: r.label,
+                              col: c.key,
+                              colLabel: c.label,
+                              value: v,
+                            });
+                          }}
                         >
                           {fmt(v, unit)}
                         </button>
                       </td>
                     );
                   })}
+                  <td className="table-td text-right hidden lg:table-cell text-[11px] text-ink-500">
+                    {r.noteRef ?? ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -152,63 +214,16 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
         </div>
       </div>
 
-      {/* Footer note */}
       <div className="text-[11px] text-ink-500 px-1 flex flex-wrap items-center gap-1.5">
         <FileText className="h-3.5 w-3.5" />
-        Figures presented in Indian numbering format. Click any cell to drill into supporting workings.
-        {schedIII && <span className="pill pill-blue">Schedule III · Division II (Ind AS)</span>}
+        Figures presented in Indian numbering format. Click any cell to drill into
+        supporting workings.
+        {schedIII && (
+          <span className="pill pill-blue">
+            Schedule III · Division II (Ind AS)
+          </span>
+        )}
       </div>
-
-      {/* Drill-down modal */}
-      {drill && (
-        <div
-          className="fixed inset-0 z-50 bg-ink-900/40 grid place-items-center p-4"
-          onClick={() => setDrill(null)}
-        >
-          <div
-            className="card w-full max-w-md p-5 shadow-pop"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold">
-              Drill-down
-            </div>
-            <div className="mt-1 text-base font-semibold text-ink-900">
-              {drill.row.label}
-            </div>
-            <div className="text-xs text-ink-500 mt-0.5">
-              Column: {cols.find((c) => c.key === drill.col)?.label}
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <SourceRow label="From standalone TB (mapped)" amount={(drill.row.values[drill.col] || 0) * 0.92} unit={unit} />
-              <SourceRow label="FX translation impact" amount={(drill.row.values[drill.col] || 0) * 0.04} unit={unit} />
-              <SourceRow label="Top-up from consol adjustments" amount={(drill.row.values[drill.col] || 0) * 0.04} unit={unit} />
-              <div className="flex items-center justify-between pt-2 border-t border-ink-100">
-                <div className="text-sm font-semibold text-ink-900">Total</div>
-                <div className="num font-semibold text-ink-900">
-                  {fmt(drill.row.values[drill.col] || 0, unit)}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setDrill(null)} className="btn btn-outline text-xs">
-                Close
-              </button>
-              <button className="btn btn-primary text-xs">Open workings</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SourceRow({ label, amount, unit }: { label: string; amount: number; unit: Unit }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="text-ink-600">{label}</div>
-      <div className="num text-ink-900">{fmt(amount, unit)}</div>
     </div>
   );
 }

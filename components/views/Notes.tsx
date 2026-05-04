@@ -1,20 +1,46 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Sparkles, Download } from "lucide-react";
+import { ChevronDown, ChevronRight, Sparkles, Download, FileSpreadsheet } from "lucide-react";
 import { notes } from "@/lib/data";
+import { useApp } from "@/lib/store";
+import { exportConsolidatedFS } from "@/lib/excel";
 
 export default function Notes() {
   const [openId, setOpenId] = useState<string | null>("RPT");
+  const { toast } = useApp();
+  const [exporting, setExporting] = useState(false);
+
+  const exportDocx = () => {
+    toast({
+      tone: "info",
+      title: "DOCX export queued",
+      body: "Your firm's letterhead and footnote styling will be applied. Download starts in a few seconds.",
+    });
+  };
+
+  const exportXlsx = async () => {
+    setExporting(true);
+    try {
+      await exportConsolidatedFS();
+      toast({
+        tone: "ok",
+        title: "Excel downloaded",
+        body: "Includes the NCI movement note linked to P&L.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
       <div className="card p-4 sm:p-5 bg-gradient-to-br from-accent-50/60 to-white">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 flex-wrap">
           <div className="hidden sm:grid h-10 w-10 rounded-lg bg-gradient-to-br from-accent-500 to-accent-700 place-items-center text-white">
             <Sparkles className="h-5 w-5" strokeWidth={1.75} />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[220px]">
             <h2 className="text-sm font-semibold text-ink-900">
               Auto-generated disclosure notes
             </h2>
@@ -23,11 +49,22 @@ export default function Notes() {
               tag each note before publishing to the FS pack.
             </p>
           </div>
-          <button className="btn btn-primary text-xs">
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Export DOCX</span>
-            <span className="sm:hidden">DOCX</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={exportXlsx}
+              disabled={exporting}
+              className="btn btn-outline text-xs disabled:opacity-60"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export Excel</span>
+              <span className="sm:hidden">XLSX</span>
+            </button>
+            <button onClick={exportDocx} className="btn btn-primary text-xs">
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export DOCX</span>
+              <span className="sm:hidden">DOCX</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -60,7 +97,11 @@ export default function Notes() {
                   </p>
                 </div>
                 <div className="text-ink-400">
-                  {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {open ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
                 </div>
               </button>
               {open && (
@@ -94,7 +135,9 @@ function NoteBody({ id, items }: { id: string; items: any[] }) {
               <tr key={i} className="row-hover">
                 <td className="table-td font-medium text-ink-900">{it.party}</td>
                 <td className="table-td text-ink-600">{it.relation}</td>
-                <td className="table-td hidden sm:table-cell text-ink-600">{it.txn}</td>
+                <td className="table-td hidden sm:table-cell text-ink-600">
+                  {it.txn}
+                </td>
                 <td className="table-td num text-right">{it.amount}</td>
               </tr>
             ))}
@@ -129,7 +172,6 @@ function NoteBody({ id, items }: { id: string; items: any[] }) {
       </div>
     );
   }
-  // Movement-style notes (NCI, GW)
   return (
     <table className="w-full text-sm">
       <tbody>

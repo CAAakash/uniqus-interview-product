@@ -3,7 +3,6 @@
 import {
   ArrowUpRight,
   CheckCircle2,
-  Circle,
   AlertTriangle,
   XCircle,
   Globe2,
@@ -16,6 +15,7 @@ import {
 import { entities, consolidationSteps, healthChecks, period } from "@/lib/data";
 import type { Unit } from "@/lib/format";
 import { fmt, unitShort } from "@/lib/format";
+import { useApp } from "@/lib/store";
 
 const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   consolidated: { label: "Consolidated", cls: "pill-green" },
@@ -25,10 +25,14 @@ const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   draft: { label: "Draft", cls: "pill-slate" },
 };
 
-export default function Dashboard({ unit }: { unit: Unit }) {
-  const totalRevenue = 12231400; // INR '000
-  const totalPAT = 1626100;
+export default function Dashboard({ unit, setView }: { unit: Unit; setView: (v: any) => void }) {
+  const totalRevenue = 12231400;
+  const totalPAT = 1264100;
   const grossAssets = 17347050;
+  const { openDialog, runConsolidation, ic, adj } = useApp();
+  const matched = ic.filter((e) => e.status === "matched").length;
+  const totalAdj = adj.length;
+  const postedAdj = adj.filter((a) => a.status === "posted").length;
 
   return (
     <div className="space-y-5">
@@ -41,6 +45,7 @@ export default function Dashboard({ unit }: { unit: Unit }) {
           unit={unitShort[unit]}
           delta="+8.4% YoY"
           tone="up"
+          onClick={() => setView("fs")}
         />
         <Kpi
           icon={Wallet}
@@ -49,6 +54,7 @@ export default function Dashboard({ unit }: { unit: Unit }) {
           unit={unitShort[unit]}
           delta="+12.1% YoY"
           tone="up"
+          onClick={() => setView("fs")}
         />
         <Kpi
           icon={Layers}
@@ -57,14 +63,16 @@ export default function Dashboard({ unit }: { unit: Unit }) {
           unit={unitShort[unit]}
           delta="+₹6.4 Cr QoQ"
           tone="up"
+          onClick={() => setView("fs")}
         />
         <Kpi
           icon={Activity}
           label="Consol progress"
-          value="62%"
+          value={`${Math.round(((matched + postedAdj) / (ic.length + totalAdj)) * 100)}%`}
           unit=""
-          delta="3 of 7 steps"
+          delta={`${matched}/${ic.length} IC · ${postedAdj}/${totalAdj} adj`}
           tone="neutral"
+          onClick={runConsolidation}
         />
       </div>
 
@@ -79,19 +87,27 @@ export default function Dashboard({ unit }: { unit: Unit }) {
               Auto-advances when each step completes for all in-scope entities.
             </p>
           </div>
-          <span className="hidden sm:inline-flex pill pill-blue">
-            Last run: 2 hr ago
-          </span>
+          <button onClick={runConsolidation} className="hidden sm:inline-flex pill pill-blue hover:bg-accent-100">
+            Run again
+          </button>
         </div>
         <ol className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {consolidationSteps.map((s, i) => {
             const isDone = s.state === "done";
             const isActive = s.state === "active";
             return (
-              <li
+              <button
                 key={s.id}
+                onClick={() => {
+                  if (s.key === "tb") setView("tb");
+                  else if (s.key === "ic") setView("ic");
+                  else if (s.key === "adj") setView("adjustments");
+                  else if (s.key === "out") setView("fs");
+                  else if (s.key === "notes") setView("notes");
+                  else runConsolidation();
+                }}
                 className={[
-                  "rounded-lg ring-1 px-3 py-2.5 transition-colors",
+                  "rounded-lg ring-1 px-3 py-2.5 text-left hover:shadow-soft transition-all",
                   isDone && "bg-emerald-50/60 ring-emerald-200",
                   isActive && "bg-amber-50/60 ring-amber-200",
                   !isDone && !isActive && "bg-ink-50 ring-ink-200/70",
@@ -119,7 +135,7 @@ export default function Dashboard({ unit }: { unit: Unit }) {
                 <div className="mt-1 text-sm font-medium text-ink-900 leading-tight">
                   {s.label}
                 </div>
-              </li>
+              </button>
             );
           })}
         </ol>
@@ -134,10 +150,13 @@ export default function Dashboard({ unit }: { unit: Unit }) {
                 Group entities
               </h2>
               <p className="text-xs text-ink-500 mt-0.5">
-                {entities.length} entities · 1 acquired this period
+                {entities.length} entities · 1 acquired this year
               </p>
             </div>
-            <button className="btn btn-outline text-xs">
+            <button
+              onClick={() => openDialog({ type: "add-entity" })}
+              className="btn btn-outline text-xs"
+            >
               Add entity
               <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
@@ -159,7 +178,11 @@ export default function Dashboard({ unit }: { unit: Unit }) {
                 {entities.map((e) => {
                   const pill = STATUS_PILL[e.status];
                   return (
-                    <tr key={e.id} className="row-hover">
+                    <tr
+                      key={e.id}
+                      onClick={() => setView("tb")}
+                      className="row-hover cursor-pointer"
+                    >
                       <td className="table-td">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 shrink-0 rounded-lg bg-ink-100 grid place-items-center">
@@ -182,9 +205,7 @@ export default function Dashboard({ unit }: { unit: Unit }) {
                         </div>
                       </td>
                       <td className="table-td">
-                        <span className="capitalize text-ink-600">
-                          {e.type}
-                        </span>
+                        <span className="capitalize text-ink-600">{e.type}</span>
                       </td>
                       <td className="table-td text-right num">
                         {e.holdingPct}%
@@ -241,7 +262,12 @@ export default function Dashboard({ unit }: { unit: Unit }) {
                 Auto-runs after every TB upload
               </p>
             </div>
-            <span className="pill pill-amber">2 to review</span>
+            <button
+              onClick={() => setView("ic")}
+              className="pill pill-amber hover:bg-amber-100"
+            >
+              2 to review
+            </button>
           </div>
           <ul className="space-y-2">
             {healthChecks.map((h) => {
@@ -295,6 +321,7 @@ function Kpi({
   unit,
   delta,
   tone,
+  onClick,
 }: {
   icon: any;
   label: string;
@@ -302,9 +329,13 @@ function Kpi({
   unit: string;
   delta: string;
   tone: "up" | "down" | "neutral";
+  onClick?: () => void;
 }) {
   return (
-    <div className="card p-4">
+    <button
+      onClick={onClick}
+      className="card p-4 text-left hover:shadow-pop transition-shadow"
+    >
       <div className="flex items-center justify-between">
         <div className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold">
           {label}
@@ -329,6 +360,6 @@ function Kpi({
       >
         {delta}
       </div>
-    </div>
+    </button>
   );
 }
