@@ -19,7 +19,8 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
   const [entityId, setEntityId] = useState("logi");
   const [filter, setFilter] = useState<"all" | "unmapped" | "ic">("all");
   const [q, setQ] = useState("");
-  const { tb, openDialog } = useApp();
+  const { tbByEntity, openDialog } = useApp();
+  const tb = tbByEntity[entityId] ?? [];
 
   const rows = useMemo(() => {
     return tb.filter((r) => {
@@ -182,7 +183,7 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
                   <td className="table-td">
                     {r.fsGroup ? (
                       <button
-                        onClick={() => openDialog({ type: "map-ledger", ledger: r })}
+                        onClick={() => openDialog({ type: "map-ledger", entityId, ledger: r })}
                         className="inline-flex items-center gap-1.5 text-ink-700 hover:text-accent-700"
                       >
                         <span className="dot bg-emerald-500" />
@@ -190,7 +191,7 @@ export default function TBWorkspace({ unit }: { unit: Unit }) {
                       </button>
                     ) : (
                       <button
-                        onClick={() => openDialog({ type: "map-ledger", ledger: r })}
+                        onClick={() => openDialog({ type: "map-ledger", entityId, ledger: r })}
                         className="inline-flex items-center gap-1.5 text-rose-600 font-medium hover:underline"
                       >
                         <span className="dot bg-rose-500" />

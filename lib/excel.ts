@@ -23,8 +23,30 @@ function colLetter(idx: number) {
 }
 
 export async function exportConsolidatedFS() {
-  const ExcelJS = (await import("exceljs")).default;
-  const { saveAs } = await import("file-saver");
+  // exceljs is a UMD/CJS module — `.default` is undefined in some bundler
+  // configs, so fall back to the namespace object.
+  const excelMod: any = await import("exceljs");
+  const ExcelJS: any = excelMod.default ?? excelMod;
+  if (!ExcelJS?.Workbook) {
+    throw new Error("exceljs failed to load — Workbook constructor missing");
+  }
+
+  // Skip file-saver entirely — its export shape is bundler-fragile under
+  // minification ("t is not a function"). Trigger the download with a
+  // plain anchor click, which works in every modern browser.
+  const saveAs = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  };
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "ConsolidatePro";
@@ -50,6 +72,60 @@ export async function exportConsolidatedFS() {
     north: "G",
     elim: "H",
     consol: "I",
+  };
+
+  // ─── Cover sheet (added FIRST so it's the leading tab) ───
+  const cover = wb.addWorksheet("Cover", {
+    views: [{ showGridLines: false }],
+  });
+  cover.getColumn(1).width = 80;
+  cover.getCell("A1").value = "Acme Industries Limited";
+  cover.getCell("A1").font = {
+    name: "Inter",
+    bold: true,
+    size: 24,
+    color: { argb: "FF0F1318" },
+  };
+  cover.getCell("A2").value = "Consolidated Financial Statements";
+  cover.getCell("A2").font = { name: "Inter", size: 14, color: { argb: "FF3F4754" } };
+  cover.getCell("A3").value = `Year ended ${period.reportingDate} · ${period.framework} · Schedule III (Division II)`;
+  cover.getCell("A3").font = { name: "Inter", size: 11, color: { argb: "FF5B6473" } };
+  cover.getCell("A6").value = "Sheets in this workbook";
+  cover.getCell("A6").font = { name: "Inter", bold: true, size: 11 };
+  [
+    "1. P&L — Statement of Profit and Loss",
+    "2. Balance Sheet (linked formulas to P&L)",
+    "3. Cash Flow — Indirect method (linked formulas to P&L)",
+    "4. Notes — NCI movement (linked formulas to P&L)",
+  ].forEach((t, i) => {
+    cover.getCell(7 + i, 1).value = t;
+    cover.getCell(7 + i, 1).font = {
+      name: "Inter",
+      size: 10,
+      color: { argb: "FF1C2129" },
+    };
+  });
+  cover.getCell("A12").value = "Conventions";
+  cover.getCell("A12").font = { name: "Inter", bold: true, size: 11 };
+  [
+    "• Figures presented in ₹ Lakhs.",
+    "• Gridlines turned off on every sheet for a printed-FS look.",
+    "• Cells filled in light blue contain formulas that link to other sheets.",
+    "• Negative numbers shown in parentheses, e.g. (123.45).",
+  ].forEach((t, i) => {
+    cover.getCell(13 + i, 1).value = t;
+    cover.getCell(13 + i, 1).font = {
+      name: "Inter",
+      size: 10,
+      color: { argb: "FF3F4754" },
+    };
+  });
+  cover.getCell("A19").value = "Prepared by: Aakash Vijayakumar (Group Controller)";
+  cover.getCell("A19").font = {
+    name: "Inter",
+    italic: true,
+    size: 10,
+    color: { argb: "FF5B6473" },
   };
 
   // ─── P&L sheet ───
@@ -469,42 +545,6 @@ export async function exportConsolidatedFS() {
     size: 9,
     color: { argb: "FF5B6473" },
   };
-
-  // ─── Cover sheet ───
-  const cover = wb.addWorksheet("Cover", {
-    views: [{ showGridLines: false }],
-  });
-  cover.getColumn(1).width = 80;
-  cover.mergeCells("A1:A1");
-  cover.getCell("A1").value = "Acme Industries Limited";
-  cover.getCell("A1").font = { name: "Inter", bold: true, size: 24, color: { argb: "FF0F1318" } };
-  cover.getCell("A2").value = "Consolidated Financial Statements";
-  cover.getCell("A2").font = { name: "Inter", size: 14, color: { argb: "FF3F4754" } };
-  cover.getCell("A3").value = `Year ended ${period.reportingDate} · ${period.framework} · Schedule III (Division II)`;
-  cover.getCell("A3").font = { name: "Inter", size: 11, color: { argb: "FF5B6473" } };
-
-  cover.getCell("A6").value = "Sheets in this workbook";
-  cover.getCell("A6").font = { name: "Inter", bold: true, size: 11 };
-  ["1. P&L — Statement of Profit and Loss", "2. Balance Sheet (linked formulas to P&L)", "3. Cash Flow — Indirect method (linked formulas to P&L)", "4. Notes — NCI movement (linked formulas to P&L)"].forEach((t, i) => {
-    cover.getCell(7 + i, 1).value = t;
-    cover.getCell(7 + i, 1).font = { name: "Inter", size: 10, color: { argb: "FF1C2129" } };
-  });
-  cover.getCell("A12").value = "Conventions";
-  cover.getCell("A12").font = { name: "Inter", bold: true, size: 11 };
-  ["• Figures presented in ₹ Lakhs.", "• Gridlines turned off on every sheet for a printed-FS look.", "• Cells filled in light blue contain formulas that link to other sheets.", "• Negative numbers shown in parentheses, e.g. (123.45)."].forEach((t, i) => {
-    cover.getCell(13 + i, 1).value = t;
-    cover.getCell(13 + i, 1).font = { name: "Inter", size: 10, color: { argb: "FF3F4754" } };
-  });
-  cover.getCell("A19").value = `Prepared by: Aakash Vijayakumar (Group Controller)`;
-  cover.getCell("A19").font = {
-    name: "Inter",
-    italic: true,
-    size: 10,
-    color: { argb: "FF5B6473" },
-  };
-
-  // Move Cover to first
-  wb.worksheets.unshift(wb.worksheets.pop()!);
 
   // Generate file
   const buffer = await wb.xlsx.writeBuffer();

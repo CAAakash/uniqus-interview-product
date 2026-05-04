@@ -291,6 +291,7 @@ function MapLedgerDialog() {
   const { dialog, closeDialog, mapLedger } = useApp();
   const open = dialog.type === "map-ledger";
   const ledger = dialog.type === "map-ledger" ? dialog.ledger : null;
+  const entityId = dialog.type === "map-ledger" ? dialog.entityId : "";
   const [picked, setPicked] = useState<string>("");
   const [q, setQ] = useState("");
 
@@ -322,7 +323,7 @@ function MapLedgerDialog() {
           <button
             disabled={!picked}
             onClick={() => {
-              mapLedger(ledger.code, picked);
+              mapLedger(entityId, ledger.code, picked);
               closeDialog();
             }}
             className="btn btn-primary text-xs disabled:opacity-50"

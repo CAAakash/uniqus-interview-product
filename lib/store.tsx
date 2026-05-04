@@ -12,7 +12,7 @@ import {
 import {
   adjustments as seedAdj,
   icEntries as seedIC,
-  tbLogi as seedTB,
+  tbByEntity as seedTBByEntity,
   notifications as seedNotifs,
   periodOptions,
   type Adjustment,
@@ -28,7 +28,7 @@ export type DialogKind =
   | { type: "none" }
   | { type: "run" }
   | { type: "upload-tb"; entityId: string }
-  | { type: "map-ledger"; ledger: LedgerLine }
+  | { type: "map-ledger"; entityId: string; ledger: LedgerLine }
   | { type: "manual-je" }
   | { type: "add-entity" }
   | { type: "command-palette" }
@@ -46,7 +46,7 @@ interface AppState {
   dialog: DialogKind;
   ic: ICEntry[];
   adj: Adjustment[];
-  tb: LedgerLine[];
+  tbByEntity: Record<string, LedgerLine[]>;
   notifs: Notification[];
   periodId: string;
   busyRun: number; // 0–100; >0 means run-consolidation in progress
@@ -61,7 +61,7 @@ type Action =
   | { type: "ic/post-je"; entry: Omit<ICEntry, "id" | "status"> & { status?: ICEntry["status"] } }
   | { type: "adj/post"; id: string }
   | { type: "adj/edit"; adj: Adjustment }
-  | { type: "tb/map"; code: string; fsGroup: string }
+  | { type: "tb/map"; entityId: string; code: string; fsGroup: string }
   | { type: "tb/upload-mock"; lines: number; entityId: string }
   | { type: "notifs/clear" }
   | { type: "period/set"; periodId: string }
@@ -104,13 +104,16 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         adj: state.adj.map((a) => (a.id === action.adj.id ? action.adj : a)),
       };
-    case "tb/map":
+    case "tb/map": {
+      const entityLines = state.tbByEntity[action.entityId] ?? [];
+      const updated = entityLines.map((l) =>
+        l.code === action.code ? { ...l, fsGroup: action.fsGroup, flagged: false } : l
+      );
       return {
         ...state,
-        tb: state.tb.map((l) =>
-          l.code === action.code ? { ...l, fsGroup: action.fsGroup, flagged: false } : l
-        ),
+        tbByEntity: { ...state.tbByEntity, [action.entityId]: updated },
       };
+    }
     case "tb/upload-mock":
       return state; // mock: no actual change beyond toast
     case "notifs/clear":
@@ -131,7 +134,7 @@ const initialState: AppState = {
   dialog: { type: "none" },
   ic: seedIC,
   adj: seedAdj,
-  tb: seedTB,
+  tbByEntity: { ...seedTBByEntity },
   notifs: seedNotifs,
   periodId: periodOptions.find((p) => p.current)?.id ?? "fy25",
   busyRun: 0,
@@ -146,7 +149,7 @@ interface AppContextShape extends AppState {
   postJE: (e: Omit<ICEntry, "id" | "status"> & { status?: ICEntry["status"] }) => void;
   postAdj: (id: string) => void;
   editAdj: (a: Adjustment) => void;
-  mapLedger: (code: string, fsGroup: string) => void;
+  mapLedger: (entityId: string, code: string, fsGroup: string) => void;
   uploadTBMock: (entityId: string, lines: number) => void;
   clearNotifs: () => void;
   setPeriod: (id: string) => void;
@@ -207,8 +210,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const mapLedger = useCallback(
-    (code: string, fsGroup: string) => {
-      dispatch({ type: "tb/map", code, fsGroup });
+    (entityId: string, code: string, fsGroup: string) => {
+      dispatch({ type: "tb/map", entityId, code, fsGroup });
       toast({ tone: "ok", title: "Ledger mapped", body: `${code} → ${fsGroup}` });
     },
     [toast]

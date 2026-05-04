@@ -28,6 +28,13 @@ export default function Notes() {
         title: "Excel downloaded",
         body: "Includes the NCI movement note linked to P&L.",
       });
+    } catch (e: any) {
+      console.error("[Excel export] failed:", e);
+      toast({
+        tone: "err",
+        title: "Export failed",
+        body: e?.message ?? String(e),
+      });
     } finally {
       setExporting(false);
     }

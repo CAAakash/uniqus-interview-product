@@ -39,11 +39,12 @@ export default function ConsolidatedFS({ unit }: { unit: Unit }) {
         title: "Excel downloaded",
         body: "Acme-Consolidated-FS-FY25.xlsx · gridlines off · BS/Notes linked to P&L.",
       });
-    } catch (e) {
+    } catch (e: any) {
+      console.error("[Excel export] failed:", e);
       toast({
         tone: "err",
         title: "Export failed",
-        body: String(e),
+        body: e?.message ?? String(e),
       });
     } finally {
       setExporting(false);
